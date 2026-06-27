@@ -307,7 +307,6 @@ Reference: *Optimal Probabilistic Cache Stampede Prevention* (Vattani et al.) �
 ### Tasks
 1. Implement `jitter.py` — `SETEX` with `ttl + random(0, jitter_pct)`
 2. Run **all strategies** with identical load script; fill comparison table
-3. Update wiki note in dev-notes (personal) with findings
 
 ### Final comparison (measured, r3, 60s load)
 
@@ -399,7 +398,6 @@ make compare-bulk        # naive vs jitter bulk runs
 - Benchmarking five strategies before Phase 1 shows a visible expiry spike
 - Using in-process cache "for simplicity" then claiming multi-pod fixes work
 - Skipping the Phase 3 discussion checkpoint — wait/retry vs stale is the core design fork
-- Writing the blog before the wiki note (wiki holds truth; blog distills)
 
 ---
 
