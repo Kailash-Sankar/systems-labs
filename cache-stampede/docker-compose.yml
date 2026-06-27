@@ -1,0 +1,44 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  app1: &app
+    build: .
+    ports:
+      - "8001:8000"
+    environment: &app_env
+      REDIS_URL: redis://redis:6379/0
+      DB_PATH: /data/app.db
+      CACHE_TTL_SEC: "5"
+      TTL_JITTER_PCT: ${TTL_JITTER_PCT:-20}
+      DB_SLEEP_MS: "200"
+      CACHE_STRATEGY: ${CACHE_STRATEGY:-naive}
+      INSTANCE_ID: app1
+    volumes:
+      - ./data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  app2:
+    <<: *app
+    ports:
+      - "8002:8000"
+    environment:
+      <<: *app_env
+      INSTANCE_ID: app2
+
+  app3:
+    <<: *app
+    ports:
+      - "8003:8000"
+    environment:
+      <<: *app_env
+      INSTANCE_ID: app3
