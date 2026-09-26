@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vector Search Lab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .hit-snippet { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .timing-bar { transition: width 0.4s ease; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 py-8">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold tracking-tight">Vector Search Lab</h1>
+      <p class="text-slate-400 mt-1">Compare sqlite-vec · Qdrant · Redis · Milvus — then RAG via OpenRouter</p>
+      <p id="health" class="text-xs text-slate-500 mt-2">Loading…</p>
+    </header>
+
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+      <label class="block text-sm font-medium text-slate-300 mb-2">Search query</label>
+      <textarea id="query" rows="2" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        placeholder="e.g. clickhouse merge tree vs mysql">clickhouse merge tree vs mysql</textarea>
+      <div class="flex flex-wrap gap-4 mt-4 items-end">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Embedding model</label>
+          <select id="model" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm"></select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Top K</label>
+          <input id="topK" type="number" min="1" max="20" value="5" class="w-20 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <button id="searchBtn" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-lg text-sm font-medium">Compare all backends</button>
+        <span id="searchStatus" class="text-sm text-slate-400"></span>
+      </div>
+    </section>
+
+    <div id="timingSummary" class="hidden mb-4 grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+    <div id="results" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-10"></div>
+
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <h2 class="text-lg font-semibold mb-1">RAG answer (OpenRouter)</h2>
+      <p class="text-xs text-slate-400 mb-4">Retrieve from one backend, then ask the free model to answer with citations.</p>
+      <div class="flex flex-wrap gap-4 mb-4 items-end">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Retrieve from</label>
+          <select id="ragBackend" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+            <option value="sqlite">sqlite</option>
+            <option value="qdrant">qdrant</option>
+            <option value="redis">redis</option>
+            <option value="milvus">milvus</option>
+          </select>
+        </div>
+        <button id="ragBtn" class="bg-emerald-700 hover:bg-emerald-600 px-5 py-2 rounded-lg text-sm font-medium">Generate answer</button>
+        <span id="ragStatus" class="text-sm text-slate-400"></span>
+      </div>
+      <div id="ragAnswer" class="hidden bg-slate-950 border border-slate-800 rounded-lg p-4 text-sm whitespace-pre-wrap leading-relaxed"></div>
+    </section>
+  </div>
+
+  <script>
+    const BACKEND_COLORS = {
+      sqlite: 'bg-sky-600',
+      qdrant: 'bg-violet-600',
+      redis: 'bg-red-600',
+      milvus: 'bg-amber-600',
+    };
+
+    async function loadHealth() {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      const el = document.getElementById('health');
+      const orStatus = data.openrouter_configured ? `OpenRouter ✓ (${data.openrouter_model})` : 'OpenRouter ✗ — add .env';
+      el.textContent = `Backends: ${data.backends.join(', ')} · ${orStatus}`;
+      const modelSel = document.getElementById('model');
+      modelSel.innerHTML = data.embedding_models.map(m => `<option value="${m}" ${m === 'bge-small' ? 'selected' : ''}>${m}</option>`).join('');
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function renderHit(hit, i) {
+      const heading = hit.heading_path ? ` · ${esc(hit.heading_path)}` : '';
+      return `<div class="border-t border-slate-800 pt-2 mt-2 first:border-0 first:pt-0 first:mt-0">
+        <div class="flex justify-between text-xs text-slate-400 mb-1">
+          <span>#${i + 1} ${esc(hit.source_path)}${heading}</span>
+          <span class="font-mono">${hit.score.toFixed(4)}</span>
+        </div>
+        <p class="hit-snippet text-sm text-slate-300">${esc(hit.text)}</p>
+      </div>`;
+    }
+
+    function renderResults(data) {
+      const container = document.getElementById('results');
+      const summary = document.getElementById('timingSummary');
+      container.innerHTML = '';
+      summary.innerHTML = '';
+      summary.classList.remove('hidden');
+
+      const maxMs = Math.max(...data.results.filter(r => !r.error).map(r => r.total_ms), 1);
+
+      for (const r of data.results) {
+        const pct = r.error ? 0 : Math.max(4, (r.total_ms / maxMs) * 100);
+        const color = BACKEND_COLORS[r.backend] || 'bg-slate-600';
+        summary.innerHTML += `<div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+          <div class="text-xs uppercase tracking-wide text-slate-400">${esc(r.backend)}</div>
+          <div class="text-lg font-mono font-semibold">${r.error ? '—' : r.total_ms.toFixed(0) + ' ms'}</div>
+          <div class="h-1.5 bg-slate-800 rounded mt-1 overflow-hidden"><div class="timing-bar h-full ${color}" style="width:${pct}%"></div></div>
+        </div>`;
+
+        const hitsHtml = r.error
+          ? `<p class="text-red-400 text-sm">${esc(r.error)}</p>`
+          : r.hits.map(renderHit).join('');
+
+        container.innerHTML += `<article class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div class="flex justify-between items-start mb-3">
+            <div>
+              <h3 class="font-semibold capitalize">${esc(r.backend)}</h3>
+              <p class="text-xs text-slate-400">${r.chunk_count} chunks indexed</p>
+            </div>
+            ${r.error ? '' : `<div class="text-right text-xs font-mono text-slate-400">
+              embed ${r.embed_ms.toFixed(0)} ms<br/>search ${r.search_ms.toFixed(0)} ms<br/>
+              <span class="text-slate-200">${r.total_ms.toFixed(0)} ms total</span>
+            </div>`}
+          </div>
+          ${hitsHtml}
+        </article>`;
+      }
+
+      if (data.fastest_backend) {
+        document.getElementById('searchStatus').textContent = `Fastest: ${data.fastest_backend}`;
+      }
+    }
+
+    document.getElementById('searchBtn').addEventListener('click', async () => {
+      const query = document.getElementById('query').value.trim();
+      if (!query) return;
+      const btn = document.getElementById('searchBtn');
+      btn.disabled = true;
+      document.getElementById('searchStatus').textContent = 'Searching…';
+      try {
+        const res = await fetch('/api/compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            model: document.getElementById('model').value,
+            top_k: Number(document.getElementById('topK').value),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || res.statusText);
+        renderResults(data);
+      } catch (e) {
+        document.getElementById('searchStatus').textContent = 'Error: ' + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('ragBtn').addEventListener('click', async () => {
+      const query = document.getElementById('query').value.trim();
+      if (!query) return;
+      const btn = document.getElementById('ragBtn');
+      const status = document.getElementById('ragStatus');
+      const out = document.getElementById('ragAnswer');
+      btn.disabled = true;
+      status.textContent = 'Retrieving + calling LLM…';
+      out.classList.add('hidden');
+      try {
+        const res = await fetch('/api/rag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            backend: document.getElementById('ragBackend').value,
+            model: document.getElementById('model').value,
+            top_k: Number(document.getElementById('topK').value),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || res.statusText);
+        out.textContent = data.answer;
+        out.classList.remove('hidden');
+        status.textContent = `Done · ${data.backend} · embed ${data.timing_ms.embed?.toFixed(0)} ms · search ${data.timing_ms.search?.toFixed(0)} ms`;
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    loadHealth();
+  </script>
+</body>
+</html>

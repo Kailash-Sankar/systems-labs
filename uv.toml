@@ -1,0 +1,5 @@
+# Personal learning repo — use public PyPI (no JFrog credentials needed).
+[[index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
