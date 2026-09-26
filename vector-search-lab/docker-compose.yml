@@ -1,0 +1,52 @@
+# Vector DBs for Phases 3–5. Phase 1 (sqlite-vec) needs no containers.
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.17.0
+    container_name: vector-lab-qdrant
+    ports:
+      - "6333:6333"   # REST + gRPC
+      - "6334:6334"   # gRPC (optional)
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6333/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis/redis-stack-server:7.4.0-v1
+    container_name: vector-lab-redis
+    ports:
+      - "6380:6379"   # 6380 on host — avoid clash with local redis on :6379
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  milvus:
+    image: milvusdb/milvus:v2.5.4
+    container_name: vector-lab-milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      COMMON_STORAGETYPE: local
+    ports:
+      - "19530:19530"   # gRPC
+      - "9091:9091"     # metrics / health
+    volumes:
+      - milvus_data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+volumes:
+  qdrant_data:
+  redis_data:
+  milvus_data:
