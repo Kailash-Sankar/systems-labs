@@ -2,7 +2,7 @@
 
 Weekend learning exercise: local embeddings, vector search across four backends (sqlite-vec, Qdrant, Redis Stack, Milvus), and simple RAG via OpenRouter.
 
-Write-up: see companion blog post in personal notes (`vector-search-and-rag-a-primer.md`).
+What you end up with: a local index over a markdown corpus, a side-by-side comparison of the four backends on the same queries, and a RAG answer that cites its sources.
 
 ## Quick start
 

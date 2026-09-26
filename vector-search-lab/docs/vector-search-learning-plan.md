@@ -249,7 +249,7 @@ vector-search-lab/
 
 ## Phase 7 — Write Up Your Learnings
 
-**Session goal:** Consolidate what you learned — blog post, personal wiki, or internal doc.
+**Session goal:** Consolidate what you learned — blog post or a note in your own personal wiki.
 
 **Duration:** ~30 min
 
@@ -260,7 +260,7 @@ vector-search-lab/
    - sqlite-vec vs Qdrant vs Redis vs Milvus — when to pick what
    - RAG pipeline sketch (retrieve → prompt → cite)
    - Model comparison results from Phase 2 (your actual queries)
-2. Link from related notes if you keep a personal knowledge base
+2. Link from related notes if you keep personal notes
 
 ### Done when
 - [x] Write-up exists with diagrams or tables
