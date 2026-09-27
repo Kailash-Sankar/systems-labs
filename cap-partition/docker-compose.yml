@@ -1,0 +1,40 @@
+networks:
+  capnet:
+    driver: bridge
+
+services:
+  node1: &node
+    build: .
+    ports:
+      - "8001:8000"
+    environment: &node_env
+      REPLICATION: ${REPLICATION:-single}
+      NODE_ID: node1
+      N: ${N:-3}
+      W: ${W:-2}
+      R: ${R:-2}
+      PEERS: ${PEERS:-}
+      RPC_DELAY_MS: ${RPC_DELAY_MS:-50}
+    networks:
+      - capnet
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  node2:
+    <<: *node
+    ports:
+      - "8002:8000"
+    environment:
+      <<: *node_env
+      NODE_ID: node2
+
+  node3:
+    <<: *node
+    ports:
+      - "8003:8000"
+    environment:
+      <<: *node_env
+      NODE_ID: node3
