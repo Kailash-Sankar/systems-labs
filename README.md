@@ -7,5 +7,6 @@ Interactive systems engineering playground — one folder per experiment. Build 
 | [cache-stampede](cache-stampede/) | Phase 7 done | [learning plan](cache-stampede/docs/cache-stampede-learning-plan.md) |
 | [vector-search-lab](vector-search-lab/) | All phases done | [learning plan](vector-search-lab/docs/vector-search-learning-plan.md) |
 | [cap-partition](cap-partition/) | Phase 7 done | [learning plan](cap-partition/docs/cap-partition-learning-plan.md) |
+| [clickhouse-storage](clickhouse-storage/) | Phase 7 done | [learning plan](clickhouse-storage/docs/clickhouse-storage-learning-plan.md) |
 
 Each project follows the same pattern: prove the problem locally, compare fixes on fixed scenarios, document what we learned. Not production scale.
